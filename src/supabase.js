@@ -205,7 +205,7 @@ export function friendlyError(err, table) {
   if (!(err instanceof SupabaseError)) return err.message || String(err);
   const text = `${err.message} ${err.details || ''} ${err.hint || ''}`;
   if (err.code === 'PGRST205' || err.code === '42P01' || /Could not find the table|does not exist/i.test(text)) {
-    return `尚未建立 public.${table} 資料表。可執行 \`feng sql ${table}\` 取得建表 SQL，貼到 Supabase SQL Editor 執行。`;
+    return `尚未建立 public.${table} 資料表。可執行 \`fengbro3 sql ${table}\` 取得建表 SQL，貼到 Supabase SQL Editor 執行。`;
   }
   if (err.status === 401 || err.status === 403 || err.code === '42501') {
     return `沒有權限（${err.message}）。請確認 anon key 與 RLS 政策。`;

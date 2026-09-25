@@ -56,20 +56,20 @@ function mainHelp() {
     heading(`鋒兄AI Supabase CLI v${VERSION}`, '網頁版 fengbroaisupabase.netlify.app 的命令列版本'),
     '',
     c.bold('用法'),
-    '  feng <指令> [參數] [--旗標]',
-    '  feng <模組> <動作> [參數] [--欄位 值 …]',
+    '  fengbro3 <指令> [參數] [--旗標]',
+    '  fengbro3 <模組> <動作> [參數] [--欄位 值 …]',
     '',
     c.bold('總覽'),
-    cmd('feng', '首頁：今天最需要處理的事項（同 feng home）'),
-    cmd('feng dashboard', '儀表：費用、到期提醒與資料狀態'),
-    cmd('feng menu', '互動式選單（像網頁側欄一樣逐層瀏覽）'),
-    cmd('feng modules', '列出所有模組與別名'),
+    cmd('fengbro3', '首頁：今天最需要處理的事項（同 fengbro3 home）'),
+    cmd('fengbro3 dashboard', '儀表：費用、到期提醒與資料狀態'),
+    cmd('fengbro3 menu', '互動式選單（像網頁側欄一樣逐層瀏覽）'),
+    cmd('fengbro3 modules', '列出所有模組與別名'),
     '',
   ];
   for (const g of GROUPS) {
     lines.push(c.bold(g.name));
     for (const m of MODULES.filter((x) => x.group === g.id)) {
-      lines.push(cmd(`feng ${m.id}`, `${m.name} — ${m.subtitle}`));
+      lines.push(cmd(`fengbro3 ${m.id}`, `${m.name} — ${m.subtitle}`));
     }
     lines.push('');
   }
@@ -89,32 +89,32 @@ function mainHelp() {
     c.bold('模組專屬'),
   );
   for (const [modId, actions] of Object.entries(MODULE_ACTIONS)) {
-    for (const action of Object.values(actions)) lines.push(cmd(`feng ${modId} ${action.usage.split(' ')[0]}`, `${action.desc}  (${action.usage})`));
+    for (const action of Object.values(actions)) lines.push(cmd(`fengbro3 ${modId} ${action.usage.split(' ')[0]}`, `${action.desc}  (${action.usage})`));
   }
   lines.push(
     '',
     c.bold('設定'),
-    cmd('feng config', '顯示目前 Supabase 來源'),
-    cmd('feng config add <名稱> …', '新增來源  --url --key [--bucket]'),
-    cmd('feng config use <名稱>', '切換來源（.env 為預設）'),
-    cmd('feng config test', '檢查所有資料表狀態'),
-    cmd('feng sql [資料表|all]', '輸出建表 SQL'),
-    cmd('feng about', '鋒兄關於'),
+    cmd('fengbro3 config', '顯示目前 Supabase 來源'),
+    cmd('fengbro3 config add <名稱> …', '新增來源  --url --key [--bucket]'),
+    cmd('fengbro3 config use <名稱>', '切換來源（.env 為預設）'),
+    cmd('fengbro3 config test', '檢查所有資料表狀態'),
+    cmd('fengbro3 sql [資料表|all]', '輸出建表 SQL'),
+    cmd('fengbro3 about', '鋒兄關於'),
     '',
     c.bold('全域旗標'),
     cmd('-p, --profile <名稱>', '本次使用指定來源'),
     cmd('--json', '輸出 JSON（方便搭配 jq）'),
     cmd('--no-color', '停用顏色（也支援 NO_COLOR）'),
-    cmd('-h, --help', '說明；feng <模組> --help 查看模組說明'),
+    cmd('-h, --help', '說明；fengbro3 <模組> --help 查看模組說明'),
     '',
     c.bold('範例'),
-    '  feng sub due 7',
-    '  feng sub add Netflix --price 390 --nextdate 2026-10-15 --account me@example.com',
-    '  feng sub renew Netflix',
-    '  feng food add 牛奶 --amount 2 --todate +7 --shop 全聯',
-    '  feng note -s supabase -n 5',
-    '  feng music export music.csv',
-    '  feng trial --json | jq ".[].name"',
+    '  fengbro3 sub due 7',
+    '  fengbro3 sub add Netflix --price 390 --nextdate 2026-10-15 --account me@example.com',
+    '  fengbro3 sub renew Netflix',
+    '  fengbro3 food add 牛奶 --amount 2 --todate +7 --shop 全聯',
+    '  fengbro3 note -s supabase -n 5',
+    '  fengbro3 music export music.csv',
+    '  fengbro3 trial --json | jq ".[].name"',
   );
   return lines.join('\n');
 }
@@ -145,7 +145,7 @@ function moduleHelp(mod) {
       .map((f) => `--${f.key}${f.required ? c.red('*') : ''}`)
       .join('  ')}`,
   );
-  lines.push(c.gray(`\n完整欄位說明：feng ${mod.id} fields`));
+  lines.push(c.gray(`\n完整欄位說明：fengbro3 ${mod.id} fields`));
   return lines.join('\n');
 }
 
@@ -201,7 +201,7 @@ export async function main(argv) {
         return 0;
       }
       if (!action) {
-        // `feng sub netflix` 視為搜尋。
+        // `fengbro3 sub netflix` 視為搜尋。
         action = listCommand;
         args.unshift(actionName);
       }
@@ -238,7 +238,7 @@ export async function main(argv) {
         return 0;
       default:
         ctx.error(`未知的指令或模組：${command}`);
-        ctx.print(c.gray('執行 feng --help 查看所有指令，或 feng modules 查看模組列表。'));
+        ctx.print(c.gray('執行 fengbro3 --help 查看所有指令，或 fengbro3 modules 查看模組列表。'));
         return 2;
     }
   } catch (err) {

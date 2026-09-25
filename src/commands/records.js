@@ -86,7 +86,7 @@ function payloadFromFlags(mod, flags) {
     payload[field.key] = convertField(field, value);
   }
   if (unknown.length) {
-    throw new Error(`未知欄位：${unknown.map((k) => `--${k}`).join(' ')}\n可用欄位請執行：feng ${mod.id} fields`);
+    throw new Error(`未知欄位：${unknown.map((k) => `--${k}`).join(' ')}\n可用欄位請執行：fengbro3 ${mod.id} fields`);
   }
   return payload;
 }
@@ -410,7 +410,7 @@ export function rowToPayload(mod, raw) {
 
 export async function importCommand(ctx, mod, args, flags) {
   const file = args[0];
-  if (!file) throw new Error(`請指定檔案：feng ${mod.id} import <檔案.csv|檔案.json>`);
+  if (!file) throw new Error(`請指定檔案：fengbro3 ${mod.id} import <檔案.csv|檔案.json>`);
   const text = await fs.readFile(file, 'utf8');
   const isJson = path.extname(file).toLowerCase() === '.json' || /^\s*[[{]/.test(text.replace(/^﻿/, ''));
   let records = isJson ? JSON.parse(text.replace(/^﻿/, '')) : parseCsvObjects(text);

@@ -103,12 +103,12 @@ export async function homeCommand(ctx, args, flags) {
 
   ctx.print(section('快速新增與處理'));
   const quick = [
-    ['feng dashboard', '總覽：費用、到期項目與資料狀態'],
-    ['feng subscription', '訂閱管理：平台費用、付款時間與續訂節奏'],
-    ['feng trial', '試用／首購：依服務展開帳號與扣款日'],
-    ['feng food due', '食品：30 天內到期清單'],
-    ['feng <模組> add', '新增資料（不帶參數會逐欄詢問）'],
-    ['feng menu', '互動式選單'],
+    ['fengbro3 dashboard', '總覽：費用、到期項目與資料狀態'],
+    ['fengbro3 subscription', '訂閱管理：平台費用、付款時間與續訂節奏'],
+    ['fengbro3 trial', '試用／首購：依服務展開帳號與扣款日'],
+    ['fengbro3 food due', '食品：30 天內到期清單'],
+    ['fengbro3 <模組> add', '新增資料（不帶參數會逐欄詢問）'],
+    ['fengbro3 menu', '互動式選單'],
   ];
   const w = Math.max(...quick.map(([k]) => strWidth(k)));
   quick.forEach(([cmd, desc]) => ctx.print(`  ${c.green(pad(cmd, w))}  ${c.gray(desc)}`));

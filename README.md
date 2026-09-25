@@ -11,18 +11,18 @@
 
 ```bash
 cd SupabaseCLIFengAI
-npm link          # 之後就能直接輸入 feng（或 fengbro）
+npm link          # 之後就能直接輸入 fengbro3（簡寫 feng 也可以）
 ```
 
-不想全域安裝的話，也可以直接執行 `node bin/feng.js …`。
+不想全域安裝的話，也可以直接執行 `node bin/fengbro3.js …`。
 
 ## 快速上手
 
 ```bash
-feng                      # 首頁：今天最需要處理的事項
-feng dashboard            # 儀表：費用、到期提醒、各資料表筆數
-feng menu                 # 互動式選單，像網頁側欄一樣逐層瀏覽
-feng --help               # 全部指令
+fengbro3                      # 首頁：今天最需要處理的事項
+fengbro3 dashboard            # 儀表：費用、到期提醒、各資料表筆數
+fengbro3 menu                 # 互動式選單，像網頁側欄一樣逐層瀏覽
+fengbro3 --help               # 全部指令
 ```
 
 ## 模組
@@ -48,16 +48,16 @@ feng --help               # 全部指令
 ## 模組動作
 
 ```bash
-feng <模組> [list] [關鍵字]           # 列表（預設動作）
-feng <模組> show <id|名稱>            # 詳細資料
-feng <模組> add [名稱] --欄位 值 …     # 新增；不帶欄位時逐欄詢問
-feng <模組> edit <id|名稱> --欄位 值   # 編輯；不帶欄位時逐欄詢問
-feng <模組> delete <id|名稱> …        # 刪除（可多筆，-y 略過確認）
-feng <模組> due [天數]                # 即將到期（訂閱/食品/額度/試用/購物）
-feng <模組> export [檔案.csv|.json]   # 匯出；不給檔名就輸出到 stdout
-feng <模組> import <檔案>             # 匯入；同名資料會更新，未變更的略過
-feng <模組> fields                    # 欄位、型別與可用選項
-feng <模組> url <id|名稱> [--open]    # 媒體檔案的連結（私有 bucket 會產生簽名網址）
+fengbro3 <模組> [list] [關鍵字]           # 列表（預設動作）
+fengbro3 <模組> show <id|名稱>            # 詳細資料
+fengbro3 <模組> add [名稱] --欄位 值 …     # 新增；不帶欄位時逐欄詢問
+fengbro3 <模組> edit <id|名稱> --欄位 值   # 編輯；不帶欄位時逐欄詢問
+fengbro3 <模組> delete <id|名稱> …        # 刪除（可多筆，-y 略過確認）
+fengbro3 <模組> due [天數]                # 即將到期（訂閱/食品/額度/試用/購物）
+fengbro3 <模組> export [檔案.csv|.json]   # 匯出；不給檔名就輸出到 stdout
+fengbro3 <模組> import <檔案>             # 匯入；同名資料會更新，未變更的略過
+fengbro3 <模組> fields                    # 欄位、型別與可用選項
+fengbro3 <模組> url <id|名稱> [--open]    # 媒體檔案的連結（私有 bucket 會產生簽名網址）
 ```
 
 `<id|名稱>` 可以是完整 id、列表上顯示的 8 碼 id 前綴，或名稱／名稱片段；有多筆符合時會列出候選項。
@@ -65,10 +65,10 @@ feng <模組> url <id|名稱> [--open]    # 媒體檔案的連結（私有 bucke
 模組專屬動作：
 
 ```bash
-feng sub toggle Netflix               # 切換續訂 / 停止續訂
-feng sub renew Netflix --months 1     # 下次扣款日往後推一個月
-feng routine done 鋒兄理髮              # 記錄今天完成（最近一次 → 前一次 → 前兩次）
-feng food use 牛奶 1                   # 消耗庫存數量
+fengbro3 sub toggle Netflix               # 切換續訂 / 停止續訂
+fengbro3 sub renew Netflix --months 1     # 下次扣款日往後推一個月
+fengbro3 routine done 鋒兄理髮              # 記錄今天完成（最近一次 → 前一次 → 前兩次）
+fengbro3 food use 牛奶 1                   # 消耗庫存數量
 ```
 
 ### 常用旗標
@@ -93,16 +93,16 @@ feng food use 牛奶 1                   # 消耗庫存數量
 ## 範例
 
 ```bash
-feng sub due 7
-feng sub add Netflix --price 390 --nextdate 2026-10-15 --account me@example.com
-feng sub add ChatGPT --price 20 --currency USD --nextdate +1m
-feng food add 牛奶 --amount 2 --todate +7 --shop 全聯
-feng trial add Cursor --account me@example.com --trialstatus tried
-feng note -s supabase -n 5
-feng gallery add --upload ./cover.png --category 封面
-feng music export music.csv
-feng food import food.csv --dry-run
-feng quota --json | jq '.[] | select(.servicetype=="ai") | .name'
+fengbro3 sub due 7
+fengbro3 sub add Netflix --price 390 --nextdate 2026-10-15 --account me@example.com
+fengbro3 sub add ChatGPT --price 20 --currency USD --nextdate +1m
+fengbro3 food add 牛奶 --amount 2 --todate +7 --shop 全聯
+fengbro3 trial add Cursor --account me@example.com --trialstatus tried
+fengbro3 note -s supabase -n 5
+fengbro3 gallery add --upload ./cover.png --category 封面
+fengbro3 music export music.csv
+fengbro3 food import food.csv --dry-run
+fengbro3 quota --json | jq '.[] | select(.servicetype=="ai") | .name'
 ```
 
 ## 設定（Supabase 來源）
@@ -110,13 +110,13 @@ feng quota --json | jq '.[] | select(.servicetype=="ai") | .name'
 預設使用網頁版的公開設定（`supabase-.env`）。要連到自己的 Supabase 專案：
 
 ```bash
-feng config add mine --url https://xxxx.supabase.co --key <anon key> --bucket <bucket>
-feng config use mine        # 切換；feng config use .env 切回預設
-feng config test            # 檢查所有資料表是否存在與筆數
-feng sql food               # 輸出建表 SQL（feng sql all 輸出全部）
+fengbro3 config add mine --url https://xxxx.supabase.co --key <anon key> --bucket <bucket>
+fengbro3 config use mine        # 切換；fengbro3 config use .env 切回預設
+fengbro3 config test            # 檢查所有資料表是否存在與筆數
+fengbro3 sql food               # 輸出建表 SQL（fengbro3 sql all 輸出全部）
 ```
 
-設定檔位於 `~/.config/fengbro/config.json`（權限 600）。也可以用環境變數覆蓋：
+設定檔位於 `~/.config/fengbro-supabase/config.json`（權限 600）。也可以用環境變數覆蓋：
 
 | 環境變數 | 說明 |
 | --- | --- |
@@ -140,7 +140,7 @@ npm test                  # node:test 單元測試
 ```
 
 ```
-bin/feng.js               進入點
+bin/fengbro3.js           進入點
 src/cli.js                指令分派與說明
 src/modules.js            15 個模組的欄位、列表欄與別名
 src/commands/records.js   通用 CRUD、匯入匯出、到期、模組專屬動作

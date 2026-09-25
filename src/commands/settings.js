@@ -63,13 +63,13 @@ export async function configCommand(ctx, args, flags) {
           { key: 'bucket', label: 'Bucket' },
         ]),
       );
-      ctx.print(c.gray('\n新增：feng config add <名稱> --url <URL> --key <anon key> [--bucket <bucket>]'));
-      ctx.print(c.gray('切換：feng config use <名稱>　　測試：feng config test'));
+      ctx.print(c.gray('\n新增：fengbro3 config add <名稱> --url <URL> --key <anon key> [--bucket <bucket>]'));
+      ctx.print(c.gray('切換：fengbro3 config use <名稱>　　測試：fengbro3 config test'));
       return;
     }
     case 'add':
     case 'set': {
-      if (!name) throw new Error('請指定來源名稱：feng config add <名稱> --url … --key …');
+      if (!name) throw new Error('請指定來源名稱：fengbro3 config add <名稱> --url … --key …');
       if (name === '.env' || name === 'env') throw new Error('「.env」與「env」是保留名稱');
       const prev = config.profiles[name] || {};
       const url = flagValue(flags, 'url');
@@ -143,7 +143,7 @@ async function tableStatus(ctx, flags) {
   );
   const missing = results.filter((r) => !r.ok).length;
   ctx.print('');
-  ctx.print(missing ? c.yellow(`有 ${missing} 張資料表無法存取；可用 \`feng sql <資料表>\` 取得建表 SQL。`) : c.green('✓ 所有資料表皆可存取'));
+  ctx.print(missing ? c.yellow(`有 ${missing} 張資料表無法存取；可用 \`fengbro3 sql <資料表>\` 取得建表 SQL。`) : c.green('✓ 所有資料表皆可存取'));
 }
 
 export function sqlCommand(ctx, args) {

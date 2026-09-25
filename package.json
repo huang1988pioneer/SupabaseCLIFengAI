@@ -4,15 +4,15 @@
   "description": "鋒兄AI Supabase 的命令列版本：在終端機管理訂閱、食品、額度、筆記、媒體與銀行資料。",
   "type": "module",
   "bin": {
-    "feng": "bin/feng.js",
-    "fengbro": "bin/feng.js"
+    "fengbro3": "bin/fengbro3.js",
+    "feng": "bin/fengbro3.js"
   },
   "files": [
     "bin",
     "src"
   ],
   "scripts": {
-    "start": "node bin/feng.js",
+    "start": "node bin/fengbro3.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {

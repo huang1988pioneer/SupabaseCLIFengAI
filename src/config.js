@@ -15,7 +15,7 @@ export const DEFAULT_SOURCE = Object.freeze({
 export function configPath() {
   if (process.env.FENG_CONFIG) return process.env.FENG_CONFIG;
   const base = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  return path.join(base, 'fengbro', 'config.json');
+  return path.join(base, 'fengbro-supabase', 'config.json');
 }
 
 export function loadConfig() {
