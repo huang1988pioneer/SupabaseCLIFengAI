@@ -1,0 +1,22 @@
+{
+  "name": "fengbro-supabase-cli",
+  "version": "1.0.0",
+  "description": "鋒兄AI Supabase 的命令列版本：在終端機管理訂閱、食品、額度、筆記、媒體與銀行資料。",
+  "type": "module",
+  "bin": {
+    "feng": "bin/feng.js",
+    "fengbro": "bin/feng.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "start": "node bin/feng.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "license": "MIT"
+}
