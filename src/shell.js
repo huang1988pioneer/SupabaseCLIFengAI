@@ -12,6 +12,8 @@ const TOP_COMMANDS = ['home', 'dashboard', 'menu', 'modules', 'config', 'sql', '
 const RECORD_ACTIONS = ['list', 'show', 'add', 'edit', 'delete', 'export', 'import', 'fields'];
 const CONFIG_ACTIONS = ['show', 'add', 'set', 'use', 'remove', 'test', 'path'];
 const HISTORY_LIMIT = 500;
+// 清除畫面並把游標移到左上角（與 clear 指令相同）。
+const CLEAR_SCREEN = '\x1b[2J\x1b[3J\x1b[H';
 
 /** 把一行指令切成參數，支援單雙引號與反斜線跳脫。 */
 export function tokenize(line) {
@@ -173,6 +175,8 @@ export async function runShell(execute, startArgs = []) {
   configurePrompt({ completer: complete, history: loadHistory() });
   const interactive = Boolean(process.stdin.isTTY);
 
+  // 進入前先清空畫面，讓貓咪騎機車從最上方開始顯示。
+  if (process.stdout.isTTY) process.stdout.write(CLEAR_SCREEN);
   await execute(['home', ...startArgs], { inShell: true });
   process.stdout.write(`${heading('互動模式', '輸入指令後按 Enter；help 看說明、Tab 補全、exit 離開。')}\n\n`);
 
@@ -205,7 +209,7 @@ export async function runShell(execute, startArgs = []) {
     const word = argv[0].toLowerCase();
     if (EXIT_WORDS.has(word)) break;
     if (word === 'clear' || word === 'cls') {
-      if (interactive) process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
+      if (process.stdout.isTTY) process.stdout.write(CLEAR_SCREEN);
       continue;
     }
     if (word === 'shell') {
