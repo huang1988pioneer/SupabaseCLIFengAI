@@ -28,16 +28,27 @@ fengbro3 --help           # 全部指令
 
 ### 互動 shell
 
-直接輸入 `fengbro3`（不帶參數）會先顯示首頁，然後停在提示字等你輸入下一個指令，不會執行完就結束：
+直接輸入 `fengbro3`（不帶參數）會先在最上方顯示「貓咪騎機車」，接著是首頁，然後停在提示字等你輸入下一個指令，不會執行完就結束。
+
+輸入模組名稱會列出資料並停在該模組，之後用列表最左邊的 **# 序號** 操作（和 AppwriteCLIFengAI 相同）：
 
 ```
-fengbro3 (supabase-.env) › sub due 7
-fengbro3 (supabase-.env) › food add 牛奶 --todate +7
-fengbro3 (supabase-.env) › help
+fengbro3 (supabase-.env) › sub
+ #  名稱      費用            下次扣款    …
+ 1  Musicful  …
+ 2  Suno      NT$ 350 ($ 10)  2026-09-22  …
+序號 查看 · a 新增 · e 序號 編輯 · d 序號 刪除 · /關鍵字 搜尋 · due · toggle 序號 · renew 序號 · l 列表 · q 返回
+
+fengbro3 訂閱 (supabase-.env) › 2                     # 查看 #2
+fengbro3 訂閱 (supabase-.env) › e 2 價格=12 note=年繳   # 編輯，顯示 舊值 → 新值
+fengbro3 訂閱 (supabase-.env) › a Netflix price=390    # 新增（只打 a 會逐欄詢問）
+fengbro3 訂閱 (supabase-.env) › d 2                     # 刪除（會先確認）
+fengbro3 訂閱 (supabase-.env) › /net                    # 搜尋
+fengbro3 訂閱 (supabase-.env) › q                       # 離開模組
 fengbro3 (supabase-.env) › exit
 ```
 
-- 指令前面不用再打 `fengbro3`（打了也沒關係）
+- 指令前面不用再打 `fengbro3`（打了也沒關係）；在模組中也能直接輸入其他模組或 `home`、`dashboard`
 - `Tab` 補全指令、模組、動作與 `--欄位`；`↑` `↓` 叫回之前的指令（跨次保留）
 - `Ctrl+C` 取消目前輸入或新增／編輯流程；`exit` 或 `Ctrl+D` 離開；`clear` 清除畫面
 - 帶參數執行（例如 `fengbro3 sub due 7`）仍是單次執行，方便寫進腳本；`fengbro3 shell` 可在任何情況下強制進入 shell
@@ -65,11 +76,11 @@ fengbro3 (supabase-.env) › exit
 ## 模組動作
 
 ```bash
-fengbro3 <模組> [list] [關鍵字]           # 列表（預設動作）
-fengbro3 <模組> show <id|名稱>            # 詳細資料
-fengbro3 <模組> add [名稱] --欄位 值 …     # 新增；不帶欄位時逐欄詢問
-fengbro3 <模組> edit <id|名稱> --欄位 值   # 編輯；不帶欄位時逐欄詢問
-fengbro3 <模組> delete <id|名稱> …        # 刪除（可多筆，-y 略過確認）
+fengbro3 <模組> [list] [關鍵字]           # 列表（預設動作），每列有 # 序號
+fengbro3 <模組> <序號>                    # 詳細資料（同 show <序號>）
+fengbro3 <模組> add [名稱] [欄位=值 …]     # 新增；不帶欄位時逐欄詢問
+fengbro3 <模組> edit <序號> [欄位=值 …]    # 編輯；不帶欄位時逐欄詢問，完成後顯示 舊值 → 新值
+fengbro3 <模組> delete <序號> …           # 刪除（可多筆，-y 略過確認）
 fengbro3 <模組> due [天數]                # 即將到期（訂閱/食品/額度/試用/購物）
 fengbro3 <模組> export [檔案.csv|.json]   # 匯出；不給檔名就輸出到 stdout
 fengbro3 <模組> import <檔案>             # 匯入；同名資料會更新，未變更的略過
@@ -77,15 +88,17 @@ fengbro3 <模組> fields                    # 欄位、型別與可用選項
 fengbro3 <模組> url <id|名稱> [--open]    # 媒體檔案的連結（私有 bucket 會產生簽名網址）
 ```
 
-`<id|名稱>` 可以是完整 id、列表上顯示的 8 碼 id 前綴，或名稱／名稱片段；有多筆符合時會列出候選項。
+- `<序號>` 是列表最左邊的 `#`（`3` 或 `#3`）；也可以用 id 前綴或名稱片段，有多筆符合時會列出候選序號。序號依模組預設排序，新增或刪除後會重新編號。
+- 欄位可以寫 `price=390`、中文名稱 `價格=390`，或 `--price 390`；`--ids` 可在列表顯示 id。
+- 日期欄位輸入 `none` 或 `-` 會清空。
 
 模組專屬動作：
 
 ```bash
-fengbro3 sub toggle Netflix               # 切換續訂 / 停止續訂
-fengbro3 sub renew Netflix --months 1     # 下次扣款日往後推一個月
+fengbro3 sub toggle 3                     # 切換續訂 / 停止續訂
+fengbro3 sub renew 3 --months 1           # 下次扣款日往後推一個月
 fengbro3 routine done 鋒兄理髮              # 記錄今天完成（最近一次 → 前一次 → 前兩次）
-fengbro3 food use 牛奶 1                   # 消耗庫存數量
+fengbro3 food use 3 1                     # 消耗庫存數量
 ```
 
 ### 常用旗標
@@ -105,14 +118,16 @@ fengbro3 food use 牛奶 1                   # 消耗庫存數量
 | `-p, --profile <名稱>` | 本次使用指定來源 |
 | `--no-color` | 停用顏色（也支援 `NO_COLOR`） |
 
-日期欄位可輸入 `YYYY-MM-DD`、`today`、`tomorrow`、`+7`、`-3`、`+2w`、`+1m`、`+1y`；輸入空字串 `""` 可清空欄位。
+日期欄位可輸入 `YYYY-MM-DD`、`today`／`今天`、`明天`、`昨天`、`+7`、`-3`、`+2w`、`+1m`、`+1y`；`none` 清空日期，空字串 `""` 可清空任何欄位。
 
 ## 範例
 
 ```bash
 fengbro3 sub due 7
-fengbro3 sub add Netflix --price 390 --nextdate 2026-10-15 --account me@example.com
-fengbro3 sub add ChatGPT --price 20 --currency USD --nextdate +1m
+fengbro3 sub add Netflix price=390 nextdate=2026-10-15 account=me@example.com
+fengbro3 sub add ChatGPT 價格=20 幣別=美元 nextdate=+1m
+fengbro3 sub edit 3 nextdate=+1m note=家庭方案
+fengbro3 sub delete 3 5 --dry-run
 fengbro3 food add 牛奶 --amount 2 --todate +7 --shop 全聯
 fengbro3 trial add Cursor --account me@example.com --trialstatus tried
 fengbro3 note -s supabase -n 5
@@ -165,6 +180,7 @@ src/commands/overview.js  首頁與儀表
 src/commands/settings.js  設定、資料表狀態、SQL、關於
 src/commands/menu.js      數字選單
 src/shell.js              持續執行的互動 shell（補全、歷史）
+src/cat-art.js            貓咪騎機車像素圖（終端機用 ▀▄ 半格字元、256 色繪製）
 src/supabase.js           PostgREST / Storage 客戶端
 src/schema.js             建表 SQL（取自網頁版）
 ```

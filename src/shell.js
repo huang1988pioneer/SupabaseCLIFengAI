@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { c, heading, pad, strWidth } from './ui.js';
-import { MODULES } from './modules.js';
-import { DUE, MODULE_ACTIONS } from './commands/records.js';
+import { MODULES, findModule } from './modules.js';
+import { DUE, MODULE_ACTIONS, RECORD_ACTIONS as RECORD_ACTION_MAP, moduleHint } from './commands/records.js';
 import { configPath, displayName, resolveSource } from './config.js';
 import { ask, configurePrompt, promptHistory, CancelledError } from './prompt.js';
 
@@ -77,6 +77,36 @@ export function complete(line) {
   return [hits.length ? hits : candidates, last];
 }
 
+const BACK_WORDS = new Set(['q', 'b', '..', 'back', '返回']);
+const SHORT_ACTIONS = { a: 'add', e: 'edit', d: 'delete', l: 'list', r: 'list', ls: 'list' };
+const LIST_ACTIONS = new Set(['list', 'ls', 'search', 'find']);
+
+/**
+ * 在模組畫面中解讀輸入（像 Appwrite 版）：3 查看、a 新增、e 3 編輯、d 3 刪除、/關鍵字 搜尋、q 返回。
+ * 回傳 { argv }（要執行的完整指令）；離開模組時 leave 為 true（可能同時帶 argv，例如 home）。
+ * 不是模組短指令時原樣回傳。
+ */
+export function routeInput(mod, argv) {
+  if (!mod || !argv.length) return { argv };
+  const [first, ...rest] = argv;
+  const word = first.toLowerCase();
+  if (BACK_WORDS.has(word)) return { leave: true };
+  if (word === 'home') return { leave: true, argv };
+  if (first.startsWith('/')) return { argv: [mod.id, 'list', ...[first.slice(1), ...rest].filter(Boolean)] };
+  if (/^#?\d+$/.test(first) && !rest.length) return { argv: [mod.id, 'show', first] };
+  if (SHORT_ACTIONS[word]) return { argv: [mod.id, SHORT_ACTIONS[word], ...rest] };
+  if (RECORD_ACTION_MAP[word] || MODULE_ACTIONS[mod.id]?.[word]) return { argv: [mod.id, ...argv] };
+  return { argv };
+}
+
+/** 這個指令會不會顯示模組列表（顯示後附上操作提示）。 */
+function showsList(argv) {
+  const mod = findModule(argv[0]);
+  if (!mod) return false;
+  const action = argv[1];
+  return action === undefined || LIST_ACTIONS.has(action.toLowerCase()) || !(RECORD_ACTION_MAP[action.toLowerCase()] || MODULE_ACTIONS[mod.id]?.[action.toLowerCase()] || /^#?\d+$/.test(action));
+}
+
 function historyFile() {
   return path.join(path.dirname(configPath()), 'history');
 }
@@ -102,6 +132,13 @@ function saveHistory() {
 
 export function shellHelp() {
   const rows = [
+    ['sub', '進入訂閱模組並列表；之後可用下面的短指令'],
+    ['3', '查看序號 3'],
+    ['a', '新增（逐欄詢問，也可 a 名稱 price=390）'],
+    ['e 3', '編輯序號 3（逐欄詢問，也可 e 3 price=390 note=備註）'],
+    ['d 3 5', '刪除序號 3 和 5（會先確認）'],
+    ['/關鍵字', '在目前模組搜尋；/ 清除搜尋'],
+    ['q', '離開目前模組'],
     ['help', '顯示說明（help <模組> 看模組說明）'],
     ['clear', '清除畫面'],
     ['exit', '離開（也可以按 Ctrl+D）'],
@@ -113,19 +150,20 @@ export function shellHelp() {
   return [
     '',
     c.bold('互動 shell'),
-    c.gray('  直接輸入指令即可，不需要再打 fengbro3；例如 sub due 7、food add 牛奶 --todate +7'),
+    c.gray('  直接輸入指令即可，不需要再打 fengbro3；輸入模組名稱後會停在該模組，用序號操作資料'),
     ...rows.map(([k, d]) => `  ${c.green(pad(k, w))}  ${c.gray(d)}`),
   ].join('\n');
 }
 
-function promptLabel() {
+function promptLabel(mod) {
   let name = '?';
   try {
     name = displayName(resolveSource());
   } catch {
     // 設定有誤時仍然讓 shell 可以用，錯誤會在執行指令時顯示。
   }
-  return `${c.green('fengbro3')} ${c.gray(`(${name})`)} ${c.cyan('›')}`;
+  const where = mod ? ` ${c.bold(mod.name)}` : '';
+  return `${c.green('fengbro3')}${where} ${c.gray(`(${name})`)} ${c.cyan('›')}`;
 }
 
 /**
@@ -139,10 +177,11 @@ export async function runShell(execute, startArgs = []) {
   process.stdout.write(`${heading('互動模式', '輸入指令後按 Enter；help 看說明、Tab 補全、exit 離開。')}\n\n`);
 
   let lastCode = 0;
+  let current = null; // 目前所在的模組
   for (;;) {
     let line;
     try {
-      line = await ask(promptLabel(), { record: true });
+      line = await ask(promptLabel(current), { record: true });
     } catch (err) {
       if (err instanceof CancelledError && !err.eof) continue;
       break; // Ctrl+D 或管線輸入結束
@@ -159,6 +198,10 @@ export async function runShell(execute, startArgs = []) {
     if (argv[0] === 'fengbro3' || argv[0] === 'feng') argv.shift(); // 習慣打全名也沒關係
     if (!argv.length) continue;
 
+    const routed = routeInput(current, argv);
+    if (routed.leave) current = null;
+    if (!routed.argv) continue;
+    argv = routed.argv;
     const word = argv[0].toLowerCase();
     if (EXIT_WORDS.has(word)) break;
     if (word === 'clear' || word === 'cls') {
@@ -170,12 +213,15 @@ export async function runShell(execute, startArgs = []) {
       continue;
     }
 
+    const target = findModule(argv[0]);
+    if (target) current = target;
     try {
       lastCode = await execute([...argv, ...startArgs], { inShell: true });
     } catch (err) {
       process.stderr.write(`${c.red(`✗ ${err.message}`)}\n`);
       lastCode = 1;
     }
+    if (target && lastCode === 0 && showsList(argv)) process.stdout.write(`${moduleHint(target)}\n`);
     process.stdout.write('\n');
   }
 

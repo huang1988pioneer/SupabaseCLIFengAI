@@ -578,8 +578,10 @@ export function titleOf(mod, row) {
   return row[mod.titleField || 'name'] || '（未命名）';
 }
 
+/** 以欄位代碼（不分大小寫）或中文名稱找欄位，例如 price、Price、價格。 */
 export function fieldOf(mod, key) {
-  return mod.fields.find((f) => f.key === key.toLowerCase());
+  const k = String(key).trim();
+  return mod.fields.find((f) => f.key === k.toLowerCase()) || mod.fields.find((f) => f.label === k);
 }
 
 export function formatFieldValue(field, value, { reveal = false } = {}) {

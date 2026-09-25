@@ -91,6 +91,7 @@ export function parseDateInput(input, now = new Date()) {
   if (!raw) return null;
   if (raw === 'today' || raw === '今天') return today(now);
   if (raw === 'tomorrow' || raw === '明天') return today(new Date(now.getTime() + 86400000));
+  if (raw === 'yesterday' || raw === '昨天') return today(new Date(now.getTime() - 86400000));
   const rel = raw.match(/^([+-])(\d+)([dwmy]?)$/i);
   if (rel) {
     const n = Number(rel[2]) * (rel[1] === '-' ? -1 : 1);
@@ -107,7 +108,7 @@ export function parseDateInput(input, now = new Date()) {
     const value = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
     if (isValidDate(value)) return value;
   }
-  throw new Error(`日期格式不正確：「${raw}」（請用 YYYY-MM-DD、today 或 +7）`);
+  throw new Error(`日期格式不正確：「${raw}」（請用 YYYY-MM-DD、today、明天、+7；none 清空）`);
 }
 
 export function parseBool(input) {

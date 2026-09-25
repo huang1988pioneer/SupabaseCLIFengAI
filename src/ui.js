@@ -1,4 +1,5 @@
 // 終端機輸出工具：顏色、CJK 寬度計算、表格與區塊。
+import { CAT_PALETTE, CAT_PIXELS } from './cat-art.js';
 
 const env = process.env;
 let colorEnabled = Boolean(process.stdout.isTTY) && !('NO_COLOR' in env) && env.TERM !== 'dumb';
@@ -179,6 +180,81 @@ export const BANNER = [
   '██║     ███████╗██║ ╚████║╚██████╔╝    ██████╔╝██║  ██║╚██████╔╝',
   '╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝     ╚═════╝ ╚═╝  ╚═╝ ╚═════╝',
 ];
+
+// 最上方的橫幅：貓咪騎機車。
+export const CAT_SCOOTER = [
+  '           /\\_/\\       __',
+  '          ( o.o )     / /',
+  '           > ^ <_____/ /',
+  '      ___ /  |   |  __/_',
+  '     / _ \\|__|___|_/ _  \\',
+  ' ~~ | (_) |=========| (_) |',
+  '     \\___/           \\___/',
+];
+
+// xterm 256 色：6x6x6 色塊的每階亮度。
+const CUBE = [0, 95, 135, 175, 215, 255];
+
+/** 把 RGB 換成最接近的 xterm-256 色號（Terminal.app 不支援 24-bit 色時使用）。 */
+export function rgbTo256([r, g, b]) {
+  const near = (v) => CUBE.reduce((best, lvl, i) => (Math.abs(lvl - v) < Math.abs(CUBE[best] - v) ? i : best), 0);
+  const [ri, gi, bi] = [near(r), near(g), near(b)];
+  const cube = [CUBE[ri], CUBE[gi], CUBE[bi]];
+  const gray = Math.min(23, Math.max(0, Math.round(((r + g + b) / 3 - 8) / 10)));
+  const grayV = 8 + gray * 10;
+  const dist = (x) => (x[0] - r) ** 2 + (x[1] - g) ** 2 + (x[2] - b) ** 2;
+  return dist([grayV, grayV, grayV]) < dist(cube) ? 232 + gray : 16 + 36 * ri + 6 * gi + bi;
+}
+
+function supportsTrueColor() {
+  return /truecolor|24bit/i.test(process.env.COLORTERM || '');
+}
+
+/**
+ * 把像素圖畫成終端機文字：一個字元格放上下兩個像素（▀ 前景為上、背景為下）。
+ * trueColor 為 false 時使用 256 色。
+ */
+export function renderPixels(pixels, palette, { trueColor = supportsTrueColor() } = {}) {
+  const fg = (rgb) => (trueColor ? `38;2;${rgb.join(';')}` : `38;5;${rgbTo256(rgb)}`);
+  const bg = (rgb) => (trueColor ? `48;2;${rgb.join(';')}` : `48;5;${rgbTo256(rgb)}`);
+  const lines = [];
+  for (let y = 0; y < pixels.length; y += 2) {
+    const top = pixels[y];
+    const bottom = pixels[y + 1] || '';
+    let line = '';
+    for (let x = 0; x < top.length; x += 1) {
+      const t = palette[top[x]];
+      const b = palette[bottom[x]];
+      if (t && b) line += `\x1b[${fg(t)};${bg(b)}m▀\x1b[0m`;
+      else if (t) line += `\x1b[${fg(t)}m▀\x1b[0m`;
+      else if (b) line += `\x1b[${fg(b)}m▄\x1b[0m`;
+      else line += ' ';
+    }
+    lines.push(line.trimEnd());
+  }
+  return lines.join('\n');
+}
+
+/** 最上方的橫幅。彩色像素圖需要顏色與足夠寬度，否則改用 ASCII 版。 */
+export function catBanner() {
+  const pixelWidth = CAT_PIXELS[0].length;
+  if (colorEnabled && termWidth() >= pixelWidth + 2) {
+    const indent = ' '.repeat(Math.max(0, Math.floor((Math.min(termWidth(), 80) - pixelWidth) / 2)));
+    const art = renderPixels(CAT_PIXELS, CAT_PALETTE)
+      .split('\n')
+      .map((l) => (l ? indent + l : l))
+      .join('\n');
+    const title = '貓咪騎機車';
+    const titleIndent = ' '.repeat(Math.max(0, Math.floor((Math.min(termWidth(), 80) - strWidth(title)) / 2)));
+    return `${art}\n${titleIndent}${c.bold(title)}\n`;
+  }
+  return [...CAT_SCOOTER.map((line) => c.cyan(line)), `      ${c.bold('貓咪騎機車')}`, ''].join('\n');
+}
+
+/** 只在終端機中顯示，避免影響 --json 或 pipe 給其他程式的輸出。 */
+export function showCatBanner(flags = {}) {
+  return Boolean(process.stdout.isTTY) && !flags.json;
+}
 
 export function banner() {
   if (termWidth() < 66) return c.bold(c.green('FENG BRO'));

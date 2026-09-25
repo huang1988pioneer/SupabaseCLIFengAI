@@ -1,6 +1,6 @@
 // 主程式：解析參數並分派到各指令。
 import { parseArgs, flagValue } from './args.js';
-import { c, setColor, isColor, heading, pad, strWidth } from './ui.js';
+import { c, setColor, isColor, heading, pad, strWidth, catBanner, showCatBanner } from './ui.js';
 import { resolveSource } from './config.js';
 import { SupabaseClient, friendlyError } from './supabase.js';
 import { GROUPS, MODULES, findModule } from './modules.js';
@@ -9,49 +9,9 @@ import { homeCommand, dashboardCommand } from './commands/overview.js';
 import { configCommand, sqlCommand, aboutCommand, VERSION } from './commands/settings.js';
 import { menuCommand } from './commands/menu.js';
 import { runShell, shellHelp } from './shell.js';
-import {
-  listCommand,
-  showCommand,
-  addCommand,
-  editCommand,
-  deleteCommand,
-  exportCommand,
-  importCommand,
-  fieldsCommand,
-  urlCommand,
-  dueCommand,
-  DUE,
-  MODULE_ACTIONS,
-} from './commands/records.js';
+import { runModuleAction, DUE, MODULE_ACTIONS } from './commands/records.js';
 
 const defaultColor = isColor();
-
-const RECORD_ACTIONS = {
-  list: listCommand,
-  ls: listCommand,
-  search: listCommand,
-  find: listCommand,
-  show: showCommand,
-  get: showCommand,
-  view: showCommand,
-  add: addCommand,
-  new: addCommand,
-  create: addCommand,
-  edit: editCommand,
-  update: editCommand,
-  set: editCommand,
-  delete: deleteCommand,
-  del: deleteCommand,
-  rm: deleteCommand,
-  remove: deleteCommand,
-  export: exportCommand,
-  import: importCommand,
-  fields: fieldsCommand,
-  url: urlCommand,
-  open: urlCommand,
-  due: dueCommand,
-  expiring: dueCommand,
-};
 
 function mainHelp() {
   const cmd = (name, desc) => `  ${c.green(pad(name, 26))}${c.gray(desc)}`;
@@ -60,7 +20,7 @@ function mainHelp() {
     '',
     c.bold('用法'),
     '  fengbro3 <指令> [參數] [--旗標]',
-    '  fengbro3 <模組> <動作> [參數] [--欄位 值 …]',
+    '  fengbro3 <模組> <動作> [序號|名稱] [欄位=值 …]',
     '',
     c.bold('總覽'),
     cmd('fengbro3', '進入互動 shell（持續執行，輸入 exit 離開）'),
@@ -79,16 +39,17 @@ function mainHelp() {
   }
   lines.push(
     c.bold('模組動作'),
-    cmd('list [關鍵字]', '列表（預設動作）  -s 搜尋  -n 筆數  --sort 欄位 --desc  --full  --json'),
-    cmd('show <id|名稱>', '查看詳細  --reveal 顯示序號/卡號  --all 顯示空欄位'),
-    cmd('add [名稱] --欄位 值', '新增（不帶欄位時逐欄詢問）  --dry-run 預覽'),
-    cmd('edit <id|名稱> --欄位 值', '編輯（不帶欄位時逐欄詢問）'),
-    cmd('delete <id|名稱>…', '刪除，可多筆  -y 略過確認'),
+    cmd('list [關鍵字]', '列表（預設動作），每列有 # 序號  -n 筆數  --sort 欄位 --desc  --ids  --json'),
+    cmd('<序號> | show <序號>', '查看詳細  --reveal 顯示序號/卡號  --all 顯示空欄位'),
+    cmd('add [名稱] [欄位=值]', '新增（不帶欄位時逐欄詢問）  --dry-run 預覽'),
+    cmd('edit <序號> [欄位=值]', '編輯（不帶欄位時逐欄詢問），會顯示 舊值 → 新值'),
+    cmd('delete <序號>…', '刪除，可多筆  -y 略過確認'),
     cmd('due [天數]', '即將到期（訂閱/食品/額度/試用/購物）  --overdue 含已過期'),
     cmd('export [檔案]', '匯出 CSV / JSON（依副檔名或 --format）'),
     cmd('import <檔案>', '匯入 CSV / JSON（同名則更新）  --dry-run  -y'),
     cmd('fields', '列出可用欄位、型別與選項'),
     cmd('url <id|名稱>', '媒體檔案連結  --open 用瀏覽器開啟'),
+    c.gray('  <序號> 是列表最左邊的 #（3 或 #3），也可以用 id 前綴或名稱；欄位可寫 price=390、價格=390 或 --price 390'),
     '',
     c.bold('模組專屬'),
   );
@@ -113,8 +74,10 @@ function mainHelp() {
     '',
     c.bold('範例'),
     '  fengbro3 sub due 7',
-    '  fengbro3 sub add Netflix --price 390 --nextdate 2026-10-15 --account me@example.com',
-    '  fengbro3 sub renew Netflix',
+    '  fengbro3 sub add Netflix price=390 nextdate=2026-10-15 account=me@example.com',
+    '  fengbro3 sub edit 3 價格=420 note=家庭方案',
+    '  fengbro3 sub renew 3',
+    '  fengbro3 sub delete 3 5',
     '  fengbro3 food add 牛奶 --amount 2 --todate +7 --shop 全聯',
     '  fengbro3 note -s supabase -n 5',
     '  fengbro3 music export music.csv',
@@ -129,10 +92,10 @@ function moduleHelp(mod) {
   lines.push(c.bold('動作'));
   const acts = [
     ['list [關鍵字]', '列表（預設）'],
-    ['show <id|名稱>', '查看詳細'],
-    ['add [名稱] --欄位 值', '新增'],
-    ['edit <id|名稱> --欄位 值', '編輯'],
-    ['delete <id|名稱>…', '刪除'],
+    ['<序號> | show <序號>', '查看詳細'],
+    ['add [名稱] [欄位=值]', '新增'],
+    ['edit <序號> [欄位=值]', '編輯'],
+    ['delete <序號>…', '刪除'],
     ['export [檔案]', '匯出'],
     ['import <檔案>', '匯入'],
     ['fields', '欄位說明'],
@@ -183,6 +146,7 @@ export async function execute(argv, { inShell = false } = {}) {
   }
   if (command === 'help' || (flags.help && !command)) {
     const mod = findModule(rest[0]);
+    if (showCatBanner(flags)) out(catBanner());
     out(mod ? moduleHelp(mod) : mainHelp());
     if (inShell && !mod) out(shellHelp());
     return 0;
@@ -198,19 +162,7 @@ export async function execute(argv, { inShell = false } = {}) {
         out(moduleHelp(mod));
         return 0;
       }
-      const [actionName, ...args] = rest;
-      let action = actionName ? RECORD_ACTIONS[actionName.toLowerCase()] : listCommand;
-      const special = actionName ? MODULE_ACTIONS[mod.id]?.[actionName.toLowerCase()] : null;
-      if (special) {
-        await special.run(ctx, mod, args, flags);
-        return 0;
-      }
-      if (!action) {
-        // `fengbro3 sub netflix` 視為搜尋。
-        action = listCommand;
-        args.unshift(actionName);
-      }
-      await action(ctx, mod, args, flags);
+      await runModuleAction(ctx, mod, rest, flags);
       return 0;
     }
 

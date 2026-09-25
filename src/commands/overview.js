@@ -1,5 +1,5 @@
 // 首頁（今日工作台）與儀表（總覽）。
-import { c, banner, heading, section, table, withSpinner, badge, strWidth, pad } from '../ui.js';
+import { c, banner, catBanner, showCatBanner, heading, section, table, withSpinner, badge, strWidth, pad } from '../ui.js';
 import { MODULES, findModule, isBankAccount, isPointsItem } from '../modules.js';
 import { daysUntil, formatDate, formatDays, formatMoney, formatNumber, toTwd, today } from '../util.js';
 import { displayName } from '../config.js';
@@ -50,6 +50,7 @@ export function foodAlerts(foods, now = new Date()) {
 const itemLine = (name, right, color = (t) => t) => `    ${color('•')} ${name}${right ? c.gray(`  ${right}`) : ''}`;
 
 export async function homeCommand(ctx, args, flags) {
+  if (showCatBanner(flags)) ctx.print(catBanner());
   const [subs, foods] = await withSpinner('整理今日工作台…', () =>
     Promise.all([safeSelect(ctx, 'subscription', { order: 'nextdate.asc.nullslast' }), safeSelect(ctx, 'food', { order: 'todate.asc.nullslast' })]),
   );

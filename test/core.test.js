@@ -190,3 +190,49 @@ test('shell complete：指令、動作與欄位旗標', async () => {
   assert.ok(complete('food --to')[0].includes('--todate'));
   assert.deepEqual(complete('config u')[0], ['use']);
 });
+
+test('序號、欄位=值：resolveRecord 與 splitAssignments', async () => {
+  const { resolveRecord, splitAssignments } = await import('../src/commands/records.js');
+  const sub = findModule('subscription');
+  const rows = [
+    { id: 'aaaa1111-0000', name: 'Netflix' },
+    { id: 'bbbb2222-0000', name: 'Spotify' },
+    { id: 'cccc3333-0000', name: '2026' },
+  ];
+  assert.equal((await resolveRecord({}, sub, '2', rows)).name, 'Spotify');
+  assert.equal((await resolveRecord({}, sub, '#1', rows)).name, 'Netflix');
+  assert.equal((await resolveRecord({}, sub, 'bbbb', rows)).name, 'Spotify');
+  assert.equal((await resolveRecord({}, sub, 'spot', rows)).name, 'Spotify');
+  await assert.rejects(resolveRecord({}, sub, '#9', rows), /沒有序號/);
+
+  const { assign, rest } = splitAssignments(sub, ['Netflix', 'price=390', '幣別=美元', 'nextdate=none', 'note=a=b']);
+  assert.deepEqual(rest, ['Netflix']);
+  assert.deepEqual(assign, { price: 390, currency: 'USD', nextdate: null, note: 'a=b' });
+  assert.throws(() => splitAssignments(sub, ['prce=3']), /沒有欄位/);
+});
+
+test('shell routeInput：模組畫面短指令', async () => {
+  const { routeInput } = await import('../src/shell.js');
+  const food = findModule('food');
+  assert.deepEqual(routeInput(food, ['3']).argv, ['food', 'show', '3']);
+  assert.deepEqual(routeInput(food, ['a', '牛奶', 'amount=2']).argv, ['food', 'add', '牛奶', 'amount=2']);
+  assert.deepEqual(routeInput(food, ['e', '3', 'todate=+7']).argv, ['food', 'edit', '3', 'todate=+7']);
+  assert.deepEqual(routeInput(food, ['d', '3', '5']).argv, ['food', 'delete', '3', '5']);
+  assert.deepEqual(routeInput(food, ['/牛', '奶']).argv, ['food', 'list', '牛', '奶']);
+  assert.deepEqual(routeInput(food, ['use', '3']).argv, ['food', 'use', '3']);
+  assert.equal(routeInput(food, ['q']).leave, true);
+  assert.deepEqual(routeInput(food, ['home']), { leave: true, argv: ['home'] });
+  assert.deepEqual(routeInput(food, ['sub', 'due']).argv, ['sub', 'due']);
+  assert.deepEqual(routeInput(null, ['3']).argv, ['3']);
+});
+
+test('貓咪騎機車：256 色轉換與半格像素繪製', async () => {
+  const { rgbTo256, renderPixels } = await import('../src/ui.js');
+  const { CAT_PIXELS } = await import('../src/cat-art.js');
+  assert.equal(rgbTo256([255, 0, 0]), 196);
+  assert.equal(rgbTo256([0, 0, 0]), 16);
+  assert.equal(rgbTo256([128, 128, 128]), 244);
+  const out = renderPixels(['AB.', '.BA'], { A: [255, 0, 0], B: [0, 0, 255] }, { trueColor: true });
+  assert.equal(out, '\x1b[38;2;255;0;0m▀\x1b[0m\x1b[38;2;0;0;255;48;2;0;0;255m▀\x1b[0m\x1b[38;2;255;0;0m▄\x1b[0m');
+  assert.ok(CAT_PIXELS.every((row) => row.length === CAT_PIXELS[0].length));
+});

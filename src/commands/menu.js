@@ -1,21 +1,12 @@
 // 互動式選單：模擬網頁版側欄的導覽方式。
 import { c, heading } from '../ui.js';
-import { GROUPS, MODULES } from '../modules.js';
+import { GROUPS, MODULES, findModule } from '../modules.js';
 import { ask, choose, CancelledError } from '../prompt.js';
 import { homeCommand, dashboardCommand } from './overview.js';
 import { configCommand, aboutCommand } from './settings.js';
-import {
-  listCommand,
-  showCommand,
-  addCommand,
-  editCommand,
-  deleteCommand,
-  exportCommand,
-  dueCommand,
-  urlCommand,
-  DUE,
-  MODULE_ACTIONS,
-} from './records.js';
+import { listCommand, runModuleAction, moduleHint, MODULE_ACTIONS } from './records.js';
+import { routeInput, tokenize } from '../shell.js';
+import { parseArgs } from '../args.js';
 
 async function run(ctx, fn) {
   try {
@@ -27,58 +18,40 @@ async function run(ctx, fn) {
   ctx.print('');
 }
 
-async function moduleMenu(ctx, mod) {
+const REFRESH_AFTER = new Set(['add', 'new', 'create', 'edit', 'update', 'set', 'delete', 'del', 'rm', 'remove', 'import']);
+
+/** 模組畫面：先列表，之後用序號操作（和 Appwrite 版相同）。 */
+async function moduleScreen(ctx, mod) {
+  let search = '';
+  const showList = () => run(ctx, () => listCommand(ctx, mod, search ? [search] : [], {}));
+  await showList();
   for (;;) {
-    ctx.print(heading(mod.title, mod.subtitle));
-    const options = [
-      { value: 'list', label: '列表' },
-      { value: 'search', label: '搜尋' },
-      { value: 'show', label: '查看詳細' },
-      { value: 'add', label: '新增' },
-      { value: 'edit', label: '編輯' },
-      { value: 'delete', label: '刪除' },
-    ];
-    if (DUE[mod.id]) options.push({ value: 'due', label: '即將到期', hint: `${DUE[mod.id].days} 天內` });
-    if (mod.fields.some((f) => f.media)) options.push({ value: 'url', label: '取得檔案連結' });
-    for (const [name, action] of Object.entries(MODULE_ACTIONS[mod.id] || {})) options.push({ value: `x:${name}`, label: action.desc, hint: name });
-    options.push({ value: 'export', label: '匯出 CSV' });
-
-    const pick = await choose('選擇操作：', options);
-    if (!pick) return;
-    const needRef = ['show', 'edit', 'delete', 'url'].includes(pick) || pick.startsWith('x:');
-    const ref = needRef ? await ask(`輸入 id 前綴或${mod.titleField === 'title' ? '標題' : '名稱'}：`) : '';
-    if (needRef && !ref) continue;
-
-    await run(ctx, async () => {
-      switch (pick) {
-        case 'list':
-          return listCommand(ctx, mod, [], {});
-        case 'search': {
-          const q = await ask('搜尋關鍵字：');
-          return listCommand(ctx, mod, [], { search: q });
-        }
-        case 'show':
-          return showCommand(ctx, mod, [ref], {});
-        case 'add':
-          return addCommand(ctx, mod, [], { interactive: true });
-        case 'edit':
-          return editCommand(ctx, mod, [ref], { interactive: true });
-        case 'delete':
-          return deleteCommand(ctx, mod, [ref], {});
-        case 'due':
-          return dueCommand(ctx, mod, [], { overdue: true });
-        case 'url':
-          return urlCommand(ctx, mod, [ref], {});
-        case 'export': {
-          const file = await ask('輸出檔名：', { defaultValue: `supabase-${mod.table}.csv` });
-          return exportCommand(ctx, mod, [file], {});
-        }
-        default: {
-          const action = MODULE_ACTIONS[mod.id][pick.slice(2)];
-          return action.run(ctx, mod, [ref], {});
-        }
-      }
-    });
+    ctx.print(moduleHint(mod));
+    let tokens;
+    try {
+      tokens = tokenize(await ask(`${c.bold(mod.name)} ${c.cyan('›')}`));
+    } catch (err) {
+      if (err instanceof CancelledError && !err.eof) continue;
+      if (err instanceof CancelledError) throw err;
+      ctx.error(`✗ ${err.message}`);
+      continue;
+    }
+    if (!tokens.length) continue;
+    const routed = routeInput(mod, tokens);
+    if (routed.leave) return;
+    if (findModule(routed.argv[0]) !== mod) {
+      ctx.print(c.yellow('看不懂這個指令；要切換模組請先輸入 q 返回。'));
+      continue;
+    }
+    const { positional, flags } = parseArgs(routed.argv.slice(1));
+    const action = String(positional[0] || 'list').toLowerCase();
+    if (['list', 'ls', 'search', 'find'].includes(action)) {
+      search = positional.slice(1).join(' ');
+      await showList();
+      continue;
+    }
+    await run(ctx, () => runModuleAction(ctx, mod, positional, flags));
+    if (REFRESH_AFTER.has(action) || MODULE_ACTIONS[mod.id]?.[action]) await showList();
   }
 }
 
@@ -101,7 +74,7 @@ export async function menuCommand(ctx) {
         ctx.print(heading(GROUPS.find((g) => g.id === group).name));
         const modId = await choose('選擇模組：', mods.map((m) => ({ value: m.id, label: m.name, hint: m.subtitle })));
         if (!modId) break;
-        await moduleMenu(ctx, MODULES.find((m) => m.id === modId));
+        await moduleScreen(ctx, MODULES.find((m) => m.id === modId));
       }
       continue;
     }

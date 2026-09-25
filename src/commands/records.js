@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { c, table, details, heading, withSpinner } from '../ui.js';
+import { c, table, details, heading, withSpinner, pad, strWidth } from '../ui.js';
 import { fieldOf, formatFieldValue, titleOf } from '../modules.js';
 import { daysUntil, formatDate, formatDays, normalize, parseBool, parseDateInput, today } from '../util.js';
 import { parseCsvObjects, toCsv } from '../csv.js';
@@ -35,6 +35,13 @@ const CONTROL_FLAGS = new Set([
 ]);
 
 const shortId = (id) => String(id || '').slice(0, 8);
+const CLEAR_WORDS = new Set(['none', '-', '無', '清空']);
+
+/** 列表序號：依模組預設排序，第 1 筆為 #1。 */
+function numbering(rows) {
+  return new Map(rows.map((r, i) => [r.id, i + 1]));
+}
+const label = (mod, row, nums) => `${nums?.get(row.id) ? c.cyan(`#${nums.get(row.id)}`) + ' ' : ''}${titleOf(mod, row)}`;
 
 // ---------- 欄位轉換 ----------
 
@@ -43,6 +50,7 @@ export function convertField(field, raw) {
   if (raw === null || raw === undefined) return null;
   const value = typeof raw === 'string' ? raw.trim() : raw;
   if (value === '' || value === 'null') return null;
+  if ((field.type === 'date' || field.type === 'datetime') && CLEAR_WORDS.has(normalize(value))) return null;
 
   switch (field.type) {
     case 'int': {
@@ -70,6 +78,26 @@ export function convertField(field, raw) {
       return s;
     }
   }
+}
+
+/**
+ * 把參數分成「欄位=值」與一般參數。例：edit 3 price=390 備註=家庭方案
+ * 等號左邊不是欄位時會報錯，名稱本身含等號請改用 --name。
+ */
+export function splitAssignments(mod, args) {
+  const assign = {};
+  const rest = [];
+  for (const arg of args) {
+    const m = /^([^=\s]+)=(.*)$/s.exec(arg);
+    if (!m) {
+      rest.push(arg);
+      continue;
+    }
+    const field = fieldOf(mod, m[1]);
+    if (!field) throw new Error(`${mod.name}沒有欄位「${m[1]}」。可用欄位請執行：fengbro3 ${mod.id} fields`);
+    assign[field.key] = convertField(field, m[2]);
+  }
+  return { assign, rest };
 }
 
 function payloadFromFlags(mod, flags) {
@@ -177,6 +205,12 @@ export async function resolveRecord(ctx, mod, ref, rows) {
   const titleKey = mod.titleField || 'name';
   const byId = list.find((r) => normalize(r.id) === key);
   if (byId) return byId;
+  // 序號：#3 一定是序號；純數字 3 在範圍內時也當序號。
+  const num = /^#?(\d+)$/.exec(key);
+  if (num && Number(num[1]) >= 1 && Number(num[1]) <= list.length && (key.startsWith('#') || !list.some((r) => normalize(r[titleKey]) === key))) {
+    return list[Number(num[1]) - 1];
+  }
+  if (key.startsWith('#')) throw new Error(`沒有序號 ${ref}（共 ${list.length} 筆）`);
   const candidates = [
     list.filter((r) => key.length >= 4 && normalize(r.id).startsWith(key)),
     list.filter((r) => normalize(r[titleKey]) === key),
@@ -185,8 +219,9 @@ export async function resolveRecord(ctx, mod, ref, rows) {
   for (const found of candidates) {
     if (found.length === 1) return found[0];
     if (found.length > 1) {
-      const lines = found.slice(0, 10).map((r) => `  ${c.gray(shortId(r.id))}  ${titleOf(mod, r)}${r.account ? c.gray(`  ${r.account}`) : ''}`);
-      throw new Error(`「${ref}」符合 ${found.length} 筆，請改用 id：\n${lines.join('\n')}${found.length > 10 ? '\n  …' : ''}`);
+      const nums = numbering(list);
+      const lines = found.slice(0, 10).map((r) => `  ${label(mod, r, nums)}${r.account ? c.gray(`  ${r.account}`) : ''}`);
+      throw new Error(`「${ref}」符合 ${found.length} 筆，請改用序號：\n${lines.join('\n')}${found.length > 10 ? '\n  …' : ''}`);
     }
   }
   throw new Error(`找不到「${ref}」`);
@@ -194,8 +229,12 @@ export async function resolveRecord(ctx, mod, ref, rows) {
 
 // ---------- 指令 ----------
 
-function listColumns(mod, flags) {
-  const cols = [{ key: 'id', label: 'ID', format: (r) => shortId(r.id), color: (r, t) => c.gray(t) }, ...mod.columns];
+function listColumns(mod, flags, nums) {
+  const cols = [
+    { key: '#', label: '#', align: 'right', format: (r) => nums.get(r.id), color: (r, t) => c.cyan(t) },
+    ...(flags.ids ? [{ key: 'id', label: 'ID', format: (r) => shortId(r.id), color: (r, t) => c.gray(t) }] : []),
+    ...mod.columns,
+  ];
   if (flags.full) return cols.map((col) => ({ ...col, max: undefined }));
   return cols;
 }
@@ -217,6 +256,7 @@ function sortRows(rows, flags) {
 
 export async function listCommand(ctx, mod, args, flags) {
   let rows = await fetchAll(ctx, mod);
+  const nums = numbering(rows);
   const terms = searchTerms(flags, args);
   rows = rows.filter((r) => matchSearch(mod, r, terms));
   rows = sortRows(rows, flags);
@@ -227,7 +267,7 @@ export async function listCommand(ctx, mod, args, flags) {
   if (flags.json) return ctx.printJson(rows);
   ctx.print(heading(mod.title, mod.subtitle));
   ctx.print('');
-  ctx.print(table(rows, listColumns(mod, flags)));
+  ctx.print(table(rows, listColumns(mod, flags, nums)));
   ctx.print('');
   const info = [];
   if (terms.length) info.push(`搜尋「${terms.join(' ')}」`);
@@ -237,9 +277,10 @@ export async function listCommand(ctx, mod, args, flags) {
 }
 
 export async function showCommand(ctx, mod, args, flags) {
-  const row = await resolveRecord(ctx, mod, args.join(' '));
+  const rows = await fetchAll(ctx, mod);
+  const row = await resolveRecord(ctx, mod, args.join(' '), rows);
   if (flags.json) return ctx.printJson(row);
-  ctx.print(heading(`${mod.title} › ${titleOf(mod, row)}`));
+  ctx.print(heading(`${mod.title} › #${numbering(rows).get(row.id)} ${titleOf(mod, row)}`));
   ctx.print('');
   const pairs = [['ID', row.id]];
   for (const field of mod.fields) {
@@ -290,9 +331,10 @@ async function handleUploads(ctx, mod, payload, flags) {
 }
 
 export async function addCommand(ctx, mod, args, flags) {
-  let payload = payloadFromFlags(mod, flags);
+  const { assign, rest } = splitAssignments(mod, args);
+  let payload = { ...assign, ...payloadFromFlags(mod, flags) };
   const titleKey = mod.titleField || 'name';
-  if (args.length && payload[titleKey] === undefined) payload[titleKey] = convertField(fieldOf(mod, titleKey), args.join(' '));
+  if (rest.length && payload[titleKey] === undefined) payload[titleKey] = convertField(fieldOf(mod, titleKey), rest.join(' '));
   await handleUploads(ctx, mod, payload, flags);
 
   if (flags.interactive || (Object.keys(payload).length === 0 && canPrompt())) {
@@ -308,15 +350,24 @@ export async function addCommand(ctx, mod, args, flags) {
   }
   const [created] = await withSpinner('寫入 Supabase…', () => ctx.client.insert(mod.table, payload));
   if (flags.json) return ctx.printJson(created);
-  ctx.print(c.green(`✓ 已新增${mod.name}「${titleOf(mod, created || payload)}」`) + c.gray(created?.id ? `  id ${created.id}` : ''));
+  let where = '';
+  try {
+    const ids = await ctx.client.select(mod.table, { columns: 'id', order: mod.order });
+    const n = ids.findIndex((r) => r.id === created?.id) + 1;
+    if (n) where = c.gray(`  序號 #${n}（fengbro3 ${mod.id} edit ${n} 可修改）`);
+  } catch {
+    // 查不到序號不影響新增結果。
+  }
+  ctx.print(c.green(`✓ 已新增${mod.name}「${titleOf(mod, created || payload)}」`) + where);
 }
 
 export async function editCommand(ctx, mod, args, flags) {
-  const [ref, ...rest] = args;
+  const [ref, ...more] = args;
   const row = await resolveRecord(ctx, mod, ref);
-  let patch = payloadFromFlags(mod, flags);
+  const { assign, rest } = splitAssignments(mod, more);
+  let patch = { ...assign, ...payloadFromFlags(mod, flags) };
   await handleUploads(ctx, mod, patch, flags);
-  if (rest.length) throw new Error(`多餘的參數：${rest.join(' ')}（名稱含空白請加引號）`);
+  if (rest.length) throw new Error(`多餘的參數：${rest.join(' ')}（修改欄位請用 欄位=值 或 --欄位 值；名稱含空白請加引號）`);
 
   if (flags.interactive || (Object.keys(patch).length === 0 && canPrompt())) {
     ctx.print(heading(`編輯${mod.name}「${titleOf(mod, row)}」`));
@@ -332,14 +383,24 @@ export async function editCommand(ctx, mod, args, flags) {
   if (titleKey in patch && !patch[titleKey]) throw new Error('名稱不可為空白');
   patch.updated_at = new Date().toISOString();
 
+  const printChanges = (after) => {
+    const keys = Object.keys(patch).filter((k) => k !== 'updated_at');
+    const width = Math.max(...keys.map((k) => strWidth(fieldOf(mod, k)?.label || k)));
+    for (const key of keys) {
+      const field = fieldOf(mod, key);
+      const show = (v) => (v === null || v === undefined || v === '' ? c.dim('（空）') : formatFieldValue(field, v, { reveal: flags.reveal }));
+      ctx.print(`  ${c.gray(pad(field?.label || key, width))}  ${show(row[key])} ${c.gray('→')} ${show(after[key])}`);
+    }
+  };
   if (flags['dry-run']) {
-    ctx.print(c.yellow('（dry-run，不會寫入）'));
-    return ctx.printJson({ table: mod.table, id: row.id, update: patch });
+    if (flags.json) return ctx.printJson({ table: mod.table, id: row.id, update: patch });
+    ctx.print(c.yellow(`（dry-run，不會寫入）將更新「${titleOf(mod, row)}」`));
+    return printChanges(patch);
   }
   const updated = await withSpinner('更新 Supabase…', () => ctx.client.update(mod.table, row.id, patch));
   if (flags.json) return ctx.printJson(updated);
-  const changed = Object.keys(patch).filter((k) => k !== 'updated_at');
-  ctx.print(c.green(`✓ 已更新「${titleOf(mod, updated)}」`) + c.gray(`（${changed.map((k) => fieldOf(mod, k)?.label || k).join('、')}）`));
+  ctx.print(c.green(`✓ 已更新「${titleOf(mod, updated)}」`));
+  printChanges(updated);
 }
 
 export async function deleteCommand(ctx, mod, args, flags) {
@@ -349,8 +410,9 @@ export async function deleteCommand(ctx, mod, args, flags) {
   for (const ref of args) targets.push(await resolveRecord(ctx, mod, ref, rows));
   const unique = [...new Map(targets.map((r) => [r.id, r])).values()];
 
+  const nums = numbering(rows);
   ctx.print(c.bold(`即將刪除 ${unique.length} 筆${mod.name}：`));
-  unique.forEach((r) => ctx.print(`  ${c.gray(shortId(r.id))}  ${titleOf(mod, r)}`));
+  unique.forEach((r) => ctx.print(`  ${label(mod, r, nums)}${r.account ? c.gray(`  ${r.account}`) : ''}`));
   if (flags['dry-run']) {
     ctx.print(c.yellow('（dry-run，不會刪除）'));
     return;
@@ -531,7 +593,9 @@ export async function dueCommand(ctx, mod, args, flags) {
   if (!due) throw new Error(`${mod.name}沒有到期日欄位`);
   const days = Number(args[0] ?? flagValue(flags, 'days') ?? due.days);
   if (!Number.isFinite(days)) throw new Error('天數必須是數字');
-  const rows = (await fetchAll(ctx, mod))
+  const all = await fetchAll(ctx, mod);
+  const nums = numbering(all);
+  const rows = all
     .map((r) => ({ ...r, _days: daysUntil(r[due.field]) }))
     .filter((r) => r._days !== null && r._days <= days && (flags.overdue || r._days >= 0))
     .filter((r) => !(mod.id === 'subscription' && r.iscontinue === false && r._days < 0))
@@ -540,7 +604,7 @@ export async function dueCommand(ctx, mod, args, flags) {
   ctx.print(heading(`${mod.title}：${days} 天內到期${flags.overdue ? '（含已過期）' : ''}`));
   ctx.print('');
   ctx.print(table(rows, [
-    { key: 'id', label: 'ID', format: (r) => shortId(r.id), color: (r, t) => c.gray(t) },
+    { key: '#', label: '#', align: 'right', format: (r) => nums.get(r.id), color: (r, t) => c.cyan(t) },
     { key: 'title', label: '名稱', max: 36, format: (r) => titleOf(mod, r) },
     { key: 'date', label: '日期', format: (r) => formatDate(r[due.field]) },
     {
@@ -605,13 +669,67 @@ export async function useCommand(ctx, mod, args, flags) {
 
 export const MODULE_ACTIONS = {
   subscription: {
-    toggle: { run: toggleCommand, usage: 'toggle <id|名稱>', desc: '切換續訂 / 停止續訂' },
-    renew: { run: renewCommand, usage: 'renew <id|名稱> [--months 1]', desc: '把下次扣款日往後推 N 個月' },
+    toggle: { run: toggleCommand, usage: 'toggle <序號>', desc: '切換續訂 / 停止續訂' },
+    renew: { run: renewCommand, usage: 'renew <序號> [--months 1]', desc: '把下次扣款日往後推 N 個月' },
   },
   routine: {
-    done: { run: doneCommand, usage: 'done <id|名稱> [--date today]', desc: '記錄完成（最近一次日期往後遞移）' },
+    done: { run: doneCommand, usage: 'done <序號> [--date today]', desc: '記錄完成（最近一次日期往後遞移）' },
   },
   food: {
-    use: { run: useCommand, usage: 'use <id|名稱> [數量]', desc: '消耗庫存數量' },
+    use: { run: useCommand, usage: 'use <序號> [數量]', desc: '消耗庫存數量' },
   },
 };
+
+// ---------- 指令分派（單次指令、shell、選單共用） ----------
+
+export const RECORD_ACTIONS = {
+  list: listCommand,
+  ls: listCommand,
+  search: listCommand,
+  find: listCommand,
+  show: showCommand,
+  get: showCommand,
+  view: showCommand,
+  add: addCommand,
+  new: addCommand,
+  create: addCommand,
+  edit: editCommand,
+  update: editCommand,
+  set: editCommand,
+  delete: deleteCommand,
+  del: deleteCommand,
+  rm: deleteCommand,
+  remove: deleteCommand,
+  export: exportCommand,
+  import: importCommand,
+  fields: fieldsCommand,
+  url: urlCommand,
+  open: urlCommand,
+  due: dueCommand,
+  expiring: dueCommand,
+};
+
+/**
+ * 執行模組動作：fengbro3 <模組> [動作] [參數]。
+ * 沒有動作時列表；第一個字是序號時查看；不是動作時視為搜尋關鍵字。
+ */
+export async function runModuleAction(ctx, mod, rest, flags) {
+  const [first, ...args] = rest;
+  if (first === undefined) return listCommand(ctx, mod, [], flags);
+  const name = first.toLowerCase();
+  const special = MODULE_ACTIONS[mod.id]?.[name];
+  if (special) return special.run(ctx, mod, args, flags);
+  const action = RECORD_ACTIONS[name];
+  if (action) return action(ctx, mod, args, flags);
+  if (/^#?\d+$/.test(first) && !args.length) return showCommand(ctx, mod, [first], flags);
+  return listCommand(ctx, mod, rest, flags);
+}
+
+/** 模組畫面的操作提示（shell 與選單共用）。 */
+export function moduleHint(mod) {
+  const extra = Object.keys(MODULE_ACTIONS[mod.id] || {}).map((k) => `${k} 序號`);
+  if (DUE[mod.id]) extra.unshift('due');
+  return c.gray(
+    ['序號 查看', 'a 新增', 'e 序號 編輯', 'd 序號 刪除', '/關鍵字 搜尋', ...extra, 'l 列表', 'q 返回'].join(' · '),
+  );
+}
