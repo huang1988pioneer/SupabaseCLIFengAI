@@ -7,6 +7,7 @@ const queued = [];
 const waiting = [];
 let closed = false;
 let options = {};
+let onInterrupt = null;
 
 export class CancelledError extends Error {
   constructor({ eof = false } = {}) {
@@ -19,6 +20,11 @@ export class CancelledError extends Error {
 /** 在第一次讀取前設定 Tab 補全與歷史紀錄（shell 使用）。 */
 export function configurePrompt({ completer, history } = {}) {
   options = { completer, history };
+}
+
+/** 設定 Ctrl+C 強制退出前要做的事（例如 shell 儲存指令歷史）。 */
+export function setInterruptHandler(fn) {
+  onInterrupt = fn;
 }
 
 // 使用 line 事件自行排隊，讓管線輸入（非 TTY）也能逐行讀取。
@@ -44,17 +50,14 @@ function getInterface() {
       closed = true;
       while (waiting.length) waiting.shift().reject(new CancelledError({ eof: true }));
     });
-    // Ctrl+C：取消目前的輸入；沒有在等輸入時（例如正在讀取資料）只提示，不結束程式。
+    // Ctrl+C：無論在輸入或讀取資料中，都強制結束程式。
     rl.on('SIGINT', () => {
-      const next = waiting.shift();
-      if (next) {
-        // 丟掉已輸入但未送出的文字，不重畫提示字。
-        rl.line = '';
-        rl.cursor = 0;
-        process.stdout.write('^C\n');
-        next.reject(new CancelledError());
-      } else {
-        process.stdout.write(c.gray('\n（輸入 exit 或按 Ctrl+D 離開）\n'));
+      process.stdout.write('^C\n');
+      try {
+        onInterrupt?.();
+      } finally {
+        closePrompt(); // 還原終端機模式
+        process.exit(130);
       }
     });
   }

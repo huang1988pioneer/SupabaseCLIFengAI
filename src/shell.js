@@ -5,7 +5,7 @@ import { c, heading, pad, strWidth } from './ui.js';
 import { MODULES, findModule } from './modules.js';
 import { DUE, MODULE_ACTIONS, RECORD_ACTIONS as RECORD_ACTION_MAP, moduleHint } from './commands/records.js';
 import { configPath, displayName, resolveSource } from './config.js';
-import { ask, configurePrompt, promptHistory, CancelledError } from './prompt.js';
+import { ask, configurePrompt, promptHistory, setInterruptHandler, CancelledError } from './prompt.js';
 
 const EXIT_WORDS = new Set(['exit', 'quit', 'q', ':q', 'bye', '離開', '結束']);
 const TOP_COMMANDS = ['home', 'dashboard', 'menu', 'modules', 'config', 'sql', 'about', 'help', 'clear', 'exit'];
@@ -146,7 +146,7 @@ export function shellHelp() {
     ['exit', '離開（也可以按 Ctrl+D）'],
     ['Tab', '補全指令、模組、動作與 --欄位'],
     ['↑ / ↓', '瀏覽之前輸入過的指令'],
-    ['Ctrl+C', '取消目前輸入或新增／編輯流程'],
+    ['Ctrl+C', '強制退出'],
   ];
   const w = Math.max(...rows.map(([k]) => strWidth(k)));
   return [
@@ -174,6 +174,10 @@ function promptLabel(mod) {
 export async function runShell(execute, startArgs = []) {
   configurePrompt({ completer: complete, history: loadHistory() });
   const interactive = Boolean(process.stdin.isTTY);
+  setInterruptHandler(() => {
+    if (interactive) saveHistory();
+    process.stdout.write(c.gray('再見！\n'));
+  });
 
   // 進入前先清空畫面，讓貓咪騎機車從最上方開始顯示。
   if (process.stdout.isTTY) process.stdout.write(CLEAR_SCREEN);

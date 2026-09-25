@@ -50,7 +50,7 @@ fengbro3 (supabase-.env) › exit
 
 - 指令前面不用再打 `fengbro3`（打了也沒關係）；在模組中也能直接輸入其他模組或 `home`、`dashboard`
 - `Tab` 補全指令、模組、動作與 `--欄位`；`↑` `↓` 叫回之前的指令（跨次保留）
-- `Ctrl+C` 取消目前輸入或新增／編輯流程；`exit` 或 `Ctrl+D` 離開；`clear` 清除畫面
+- `Ctrl+C` 隨時強制退出；`exit` 或 `Ctrl+D` 正常離開；`clear` 清除畫面
 - 帶參數執行（例如 `fengbro3 sub due 7`）仍是單次執行，方便寫進腳本；`fengbro3 shell` 可在任何情況下強制進入 shell
 
 ## 模組
