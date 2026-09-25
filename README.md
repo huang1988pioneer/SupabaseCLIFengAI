@@ -19,11 +19,28 @@ npm link          # 之後就能直接輸入 fengbro3（簡寫 feng 也可以）
 ## 快速上手
 
 ```bash
-fengbro3                      # 首頁：今天最需要處理的事項
-fengbro3 dashboard            # 儀表：費用、到期提醒、各資料表筆數
-fengbro3 menu                 # 互動式選單，像網頁側欄一樣逐層瀏覽
-fengbro3 --help               # 全部指令
+fengbro3                  # 進入互動 shell（持續執行，直到輸入 exit）
+fengbro3 home             # 首頁：今天最需要處理的事項（單次執行後結束）
+fengbro3 dashboard        # 儀表：費用、到期提醒、各資料表筆數
+fengbro3 menu             # 數字選單，像網頁側欄一樣逐層瀏覽
+fengbro3 --help           # 全部指令
 ```
+
+### 互動 shell
+
+直接輸入 `fengbro3`（不帶參數）會先顯示首頁，然後停在提示字等你輸入下一個指令，不會執行完就結束：
+
+```
+fengbro3 (supabase-.env) › sub due 7
+fengbro3 (supabase-.env) › food add 牛奶 --todate +7
+fengbro3 (supabase-.env) › help
+fengbro3 (supabase-.env) › exit
+```
+
+- 指令前面不用再打 `fengbro3`（打了也沒關係）
+- `Tab` 補全指令、模組、動作與 `--欄位`；`↑` `↓` 叫回之前的指令（跨次保留）
+- `Ctrl+C` 取消目前輸入或新增／編輯流程；`exit` 或 `Ctrl+D` 離開；`clear` 清除畫面
+- 帶參數執行（例如 `fengbro3 sub due 7`）仍是單次執行，方便寫進腳本；`fengbro3 shell` 可在任何情況下強制進入 shell
 
 ## 模組
 
@@ -116,7 +133,7 @@ fengbro3 config test            # 檢查所有資料表是否存在與筆數
 fengbro3 sql food               # 輸出建表 SQL（fengbro3 sql all 輸出全部）
 ```
 
-設定檔位於 `~/.config/fengbro-supabase/config.json`（權限 600）。也可以用環境變數覆蓋：
+設定檔位於 `~/.config/fengbro-supabase/config.json`（權限 600），shell 的指令歷史存在同目錄的 `history`。也可以用環境變數覆蓋：
 
 | 環境變數 | 說明 |
 | --- | --- |
@@ -146,7 +163,8 @@ src/modules.js            15 個模組的欄位、列表欄與別名
 src/commands/records.js   通用 CRUD、匯入匯出、到期、模組專屬動作
 src/commands/overview.js  首頁與儀表
 src/commands/settings.js  設定、資料表狀態、SQL、關於
-src/commands/menu.js      互動式選單
+src/commands/menu.js      數字選單
+src/shell.js              持續執行的互動 shell（補全、歷史）
 src/supabase.js           PostgREST / Storage 客戶端
 src/schema.js             建表 SQL（取自網頁版）
 ```

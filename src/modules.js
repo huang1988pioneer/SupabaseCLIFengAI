@@ -157,7 +157,7 @@ export const MODULES = [
     summary(rows) {
       const active = rows.filter((r) => r.iscontinue !== false);
       const total = rows.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
-      return `共 ${rows.length} 筆，續訂中 ${active.length} 筆，費用合計 NT$ ${formatNumber(total)}（原幣加總，同網頁版）`;
+      return `續訂中 ${active.length} 筆，費用合計 NT$ ${formatNumber(total)}（原幣加總，同網頁版）`;
     },
   },
   {
@@ -321,7 +321,7 @@ export const MODULES = [
     search: ['name', 'shop', 'pickupmethod', 'account', 'note'],
     summary(rows) {
       const total = rows.reduce((s, r) => s + toTwd((Number(r.price) || 0) * (Number(r.quantity) || 1), r.currency), 0);
-      return `共 ${rows.length} 項，預估總額 NT$ ${formatNumber(total)}`;
+      return `預估總額 NT$ ${formatNumber(total)}`;
     },
   },
   {

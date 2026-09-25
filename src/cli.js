@@ -1,6 +1,6 @@
 // 主程式：解析參數並分派到各指令。
 import { parseArgs, flagValue } from './args.js';
-import { c, setColor, heading, pad, strWidth } from './ui.js';
+import { c, setColor, isColor, heading, pad, strWidth } from './ui.js';
 import { resolveSource } from './config.js';
 import { SupabaseClient, friendlyError } from './supabase.js';
 import { GROUPS, MODULES, findModule } from './modules.js';
@@ -8,6 +8,7 @@ import { closePrompt, CancelledError } from './prompt.js';
 import { homeCommand, dashboardCommand } from './commands/overview.js';
 import { configCommand, sqlCommand, aboutCommand, VERSION } from './commands/settings.js';
 import { menuCommand } from './commands/menu.js';
+import { runShell, shellHelp } from './shell.js';
 import {
   listCommand,
   showCommand,
@@ -22,6 +23,8 @@ import {
   DUE,
   MODULE_ACTIONS,
 } from './commands/records.js';
+
+const defaultColor = isColor();
 
 const RECORD_ACTIONS = {
   list: listCommand,
@@ -60,7 +63,8 @@ function mainHelp() {
     '  fengbro3 <模組> <動作> [參數] [--欄位 值 …]',
     '',
     c.bold('總覽'),
-    cmd('fengbro3', '首頁：今天最需要處理的事項（同 fengbro3 home）'),
+    cmd('fengbro3', '進入互動 shell（持續執行，輸入 exit 離開）'),
+    cmd('fengbro3 home', '首頁：今天最需要處理的事項'),
     cmd('fengbro3 dashboard', '儀表：費用、到期提醒與資料狀態'),
     cmd('fengbro3 menu', '互動式選單（像網頁側欄一樣逐層瀏覽）'),
     cmd('fengbro3 modules', '列出所有模組與別名'),
@@ -159,10 +163,10 @@ function modulesList(ctx) {
   }
 }
 
-export async function main(argv) {
+/** 執行一個指令並回傳結束代碼；互動 shell 會重複呼叫它。 */
+export async function execute(argv, { inShell = false } = {}) {
   const { positional, flags } = parseArgs(argv);
-  if (flags.color === false) setColor(false);
-  if (flags.color === true) setColor(true);
+  setColor(flags.color === undefined ? defaultColor : flags.color !== false);
 
   const out = (text) => process.stdout.write(`${text}\n`);
   const ctx = {
@@ -180,6 +184,7 @@ export async function main(argv) {
   if (command === 'help' || (flags.help && !command)) {
     const mod = findModule(rest[0]);
     out(mod ? moduleHelp(mod) : mainHelp());
+    if (inShell && !mod) out(shellHelp());
     return 0;
   }
 
@@ -250,6 +255,17 @@ export async function main(argv) {
     ctx.error(`✗ ${friendlyError(err, mod?.table || command)}`);
     if (process.env.FENG_DEBUG) console.error(err);
     return 1;
+  }
+}
+
+export async function main(argv) {
+  const [first] = parseArgs(argv).positional;
+  const interactiveTerminal = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  // 不帶指令且在終端機中執行，或明確輸入 shell：進入持續執行的互動模式。
+  const wantsShell = first === 'shell' || (argv.length === 0 && interactiveTerminal);
+  try {
+    if (wantsShell) return await runShell(execute, argv.filter((a) => a !== 'shell'));
+    return await execute(argv);
   } finally {
     closePrompt();
   }

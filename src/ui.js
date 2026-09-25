@@ -8,6 +8,10 @@ export function setColor(enabled) {
   colorEnabled = enabled;
 }
 
+export function isColor() {
+  return colorEnabled;
+}
+
 const wrap = (open, close) => (text) => (colorEnabled ? `\x1b[${open}m${text}\x1b[${close}m` : String(text));
 
 export const c = {

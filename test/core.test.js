@@ -173,3 +173,20 @@ test('SupabaseClient：錯誤訊息保留 PostgREST 代碼', async () => {
   const client = new SupabaseClient({ supabaseUrl: 'https://x.supabase.co', supabaseAnonKey: 'k' }, { fetchImpl: fakeFetch });
   await assert.rejects(client.select('nope'), (err) => err.code === 'PGRST205' && err.status === 404);
 });
+
+test('shell tokenize：引號、跳脫與空白', async () => {
+  const { tokenize } = await import('../src/shell.js');
+  assert.deepEqual(tokenize('food add "牛奶 全脂" --todate +3'), ['food', 'add', '牛奶 全脂', '--todate', '+3']);
+  assert.deepEqual(tokenize("note -s 'a b' x\\ y"), ['note', '-s', 'a b', 'x y']);
+  assert.deepEqual(tokenize('sub edit x --note ""'), ['sub', 'edit', 'x', '--note', '']);
+  assert.deepEqual(tokenize('   '), []);
+  assert.throws(() => tokenize('sub "abc'));
+});
+
+test('shell complete：指令、動作與欄位旗標', async () => {
+  const { complete } = await import('../src/shell.js');
+  assert.deepEqual(complete('fo')[0], ['food']);
+  assert.ok(complete('sub r')[0].includes('renew'));
+  assert.ok(complete('food --to')[0].includes('--todate'));
+  assert.deepEqual(complete('config u')[0], ['use']);
+});

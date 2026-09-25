@@ -1,4 +1,4 @@
-// 互動式輸入工具（readline）。
+// 互動式輸入工具（readline）。單次指令與持續執行的 shell 共用同一個介面。
 import readline from 'node:readline';
 import { c } from './ui.js';
 
@@ -6,11 +6,35 @@ let rl = null;
 const queued = [];
 const waiting = [];
 let closed = false;
+let options = {};
+
+export class CancelledError extends Error {
+  constructor({ eof = false } = {}) {
+    super(eof ? '輸入已結束' : '已取消');
+    this.name = 'CancelledError';
+    this.eof = eof;
+  }
+}
+
+/** 在第一次讀取前設定 Tab 補全與歷史紀錄（shell 使用）。 */
+export function configurePrompt({ completer, history } = {}) {
+  options = { completer, history };
+}
 
 // 使用 line 事件自行排隊，讓管線輸入（非 TTY）也能逐行讀取。
 function getInterface() {
   if (!rl) {
-    rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: Boolean(process.stdin.isTTY) });
+    const terminal = Boolean(process.stdin.isTTY);
+    rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal,
+      completer: terminal ? options.completer : undefined,
+      history: options.history ? [...options.history] : [],
+      historySize: 500,
+      removeHistoryDuplicates: true,
+    });
+    closed = false;
     rl.on('line', (line) => {
       const next = waiting.shift();
       if (next) next.resolve(line);
@@ -18,20 +42,23 @@ function getInterface() {
     });
     rl.on('close', () => {
       closed = true;
-      while (waiting.length) waiting.shift().reject(new CancelledError());
+      while (waiting.length) waiting.shift().reject(new CancelledError({ eof: true }));
     });
+    // Ctrl+C：取消目前的輸入；沒有在等輸入時（例如正在讀取資料）只提示，不結束程式。
     rl.on('SIGINT', () => {
-      rl.close();
+      const next = waiting.shift();
+      if (next) {
+        // 丟掉已輸入但未送出的文字，不重畫提示字。
+        rl.line = '';
+        rl.cursor = 0;
+        process.stdout.write('^C\n');
+        next.reject(new CancelledError());
+      } else {
+        process.stdout.write(c.gray('\n（輸入 exit 或按 Ctrl+D 離開）\n'));
+      }
     });
   }
   return rl;
-}
-
-export class CancelledError extends Error {
-  constructor() {
-    super('已取消');
-    this.name = 'CancelledError';
-  }
 }
 
 export function closePrompt() {
@@ -45,7 +72,12 @@ export function canPrompt() {
   return Boolean(process.stdin.isTTY);
 }
 
-export async function ask(question, { defaultValue } = {}) {
+/** 目前 session 的指令歷史（新的在前）。 */
+export function promptHistory() {
+  return rl ? [...rl.history] : [];
+}
+
+export async function ask(question, { defaultValue, record = false } = {}) {
   const iface = getInterface();
   const suffix = defaultValue !== undefined && defaultValue !== '' ? c.gray(` [${defaultValue}]`) : '';
   if (closed) {
@@ -60,11 +92,13 @@ export async function ask(question, { defaultValue } = {}) {
     answer = queued.shift();
     if (!process.stdin.isTTY) process.stdout.write(`${answer}\n`);
   } else if (closed) {
-    throw new CancelledError();
+    throw new CancelledError({ eof: true });
   } else {
     answer = await new Promise((resolve, reject) => waiting.push({ resolve, reject }));
     if (!process.stdin.isTTY) process.stdout.write(`${answer}\n`);
   }
+  // 只有 shell 的指令列要留在上下鍵歷史中，欄位輸入不要。
+  if (!record && iface.history && iface.history[0] === answer) iface.history.shift();
   const trimmed = answer.trim();
   return trimmed === '' && defaultValue !== undefined ? String(defaultValue) : trimmed;
 }
@@ -77,8 +111,8 @@ export async function confirm(question, { defaultYes = false } = {}) {
 }
 
 /** 以編號選擇；回傳選到的 value，輸入空白或 q 回傳 null。 */
-export async function choose(question, options, { allowBack = true } = {}) {
-  options.forEach((opt, i) => {
+export async function choose(question, choices, { allowBack = true } = {}) {
+  choices.forEach((opt, i) => {
     const num = c.cyan(String(i + 1).padStart(2, ' '));
     process.stdout.write(`  ${num}. ${opt.label}${opt.hint ? c.gray(`  ${opt.hint}`) : ''}\n`);
   });
@@ -87,9 +121,9 @@ export async function choose(question, options, { allowBack = true } = {}) {
     const answer = (await ask(question)).trim();
     if (answer === '' || answer === '0' || answer.toLowerCase() === 'q') return null;
     const n = Number(answer);
-    if (Number.isInteger(n) && n >= 1 && n <= options.length) return options[n - 1].value;
-    const match = options.find((o) => String(o.value).toLowerCase() === answer.toLowerCase());
+    if (Number.isInteger(n) && n >= 1 && n <= choices.length) return choices[n - 1].value;
+    const match = choices.find((o) => String(o.value).toLowerCase() === answer.toLowerCase());
     if (match) return match.value;
-    process.stdout.write(c.yellow(`請輸入 1-${options.length} 的數字。\n`));
+    process.stdout.write(c.yellow(`請輸入 1-${choices.length} 的數字。\n`));
   }
 }
